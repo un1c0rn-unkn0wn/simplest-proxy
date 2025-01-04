@@ -36,10 +36,6 @@ func main() {
 	flag.StringVar(&bind, "bind", "0.0.0.0", "address to bind the proxy server to")
 	var port string
 	flag.StringVar(&port, "port", "8888", "proxy port to listen on")
-	var socks5 string
-	flag.StringVar(&socks5, "socks5", "", "SOCKS5 proxy for tunneling, not used if not provided")
-	var socks5Auth string
-	flag.StringVar(&socks5Auth, "socks5-auth", "", "basic auth for socks5, format 'username:password', no auth if not provided")
 	var certPath string
 	flag.StringVar(&certPath, "cert", "", "path to cert file")
 	var keyPath string
@@ -67,29 +63,12 @@ func main() {
 		glog.Fatalf("If using HTTPS protocol --cert and --key are required\n")
 	}
 
-	var socks5Forward *proxy.Socks5Forward
-	if socks5 != "" {
-		socks5Forward = &proxy.Socks5Forward{
-			Address: socks5,
-		}
-		if socks5Auth != "" {
-			parts := strings.Split(socks5Auth, ":")
-			if len(parts) < 2 {
-				glog.Fatalf("Invalid socks5 basic auth provided, must be in format 'username:password', auth: %s\n", basicAuth)
-			}
-
-			socks5Forward.Username = &parts[0]
-			socks5Forward.Password = &parts[1]
-		}
-	}
-
 	var handler http.Handler
 	if basicAuth == "" {
 		handler = &proxy.ProxyHandler{
-			Timeout:       time.Duration(timeoutSecs) * time.Second,
-			LogAuth:       logAuth,
-			LogHeaders:    logHeaders,
-			Socks5Forward: socks5Forward,
+			Timeout:    time.Duration(timeoutSecs) * time.Second,
+			LogAuth:    logAuth,
+			LogHeaders: logHeaders,
 		}
 	} else {
 		parts := strings.Split(basicAuth, ":")
@@ -97,12 +76,11 @@ func main() {
 			glog.Fatalf("Invalid basic auth provided, must be in format 'username:password', auth: %s\n", basicAuth)
 		}
 		handler = &proxy.ProxyHandler{
-			Timeout:       time.Duration(timeoutSecs) * time.Second,
-			Username:      &parts[0],
-			Password:      &parts[1],
-			LogAuth:       logAuth,
-			LogHeaders:    logHeaders,
-			Socks5Forward: socks5Forward,
+			Timeout:    time.Duration(timeoutSecs) * time.Second,
+			Username:   &parts[0],
+			Password:   &parts[1],
+			LogAuth:    logAuth,
+			LogHeaders: logHeaders,
 		}
 	}
 
@@ -115,9 +93,6 @@ func main() {
 
 	if protocol == httpProtocol {
 		glog.V(0).Infoln("Starting HTTP proxy...")
-		if socks5 != "" {
-			glog.V(0).Infof("Tunneling HTTP requests to SOCKS5 proxy: %s\n", socks5)
-		}
 		log.Fatal(server.ListenAndServe())
 	} else {
 		glog.V(0).Infoln("Starting HTTPS proxy...")
