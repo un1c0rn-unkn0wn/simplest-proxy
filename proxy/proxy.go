@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	netProxy "golang.org/x/net/proxy"
 )
 
 func NewProxyHandler(timeoutSeconds int) *ProxyHandler {
@@ -19,18 +18,11 @@ func NewProxyHandler(timeoutSeconds int) *ProxyHandler {
 }
 
 type ProxyHandler struct {
-	Timeout       time.Duration
-	Username      *string
-	Password      *string
-	LogAuth       bool
-	LogHeaders    bool
-	Socks5Forward *Socks5Forward
-}
-
-type Socks5Forward struct {
-	Address  string
-	Username *string
-	Password *string
+	Timeout    time.Duration
+	Username   *string
+	Password   *string
+	LogAuth    bool
+	LogHeaders bool
 }
 
 func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +38,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := proxyBasicAuth(r)
 		if !ok || username != *p.Username || password != *p.Password {
 			if p.LogAuth {
-				glog.Errorf("Unauthorized, username: %s, password: %s\n", username, password)
+				glog.Errorf("Unauthorized request from %s with username: %s and password: %s\n", r.RemoteAddr, username, password)
 			} else {
 				glog.Errorln("Unauthorized")
 			}
@@ -56,65 +48,33 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if r.Method == http.MethodConnect {
-		handleTunneling(w, r, p.Timeout, p.Socks5Forward)
+		handleTunneling(w, r, p.Timeout)
 	} else {
 		handleHTTP(w, r)
 	}
 }
 
-func handleTunneling(w http.ResponseWriter, r *http.Request, timeout time.Duration, socks5Forward *Socks5Forward) {
-	var destConn net.Conn
-	var err error
-
-	if socks5Forward == nil {
-		destConn, err = net.DialTimeout("tcp", r.Host, timeout)
-	} else {
-		var socks5Auth *netProxy.Auth
-		if socks5Forward.Username != nil && socks5Forward.Password != nil {
-			socks5Auth = &netProxy.Auth{
-				User:     *socks5Forward.Username,
-				Password: *socks5Forward.Password,
-			}
-		}
-
-		var socks5Dialer netProxy.Dialer
-		socks5Dialer, err = netProxy.SOCKS5("tcp", socks5Forward.Address, socks5Auth, &net.Dialer{
-			Timeout:   timeout,
-			KeepAlive: 30 * time.Second,
-		})
-
-		if err != nil {
-			glog.Errorf("Failed to dial socks5 proxy %s, %s\n", socks5Forward.Address, err.Error())
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
-			return
-		}
-
-		destConn, err = socks5Dialer.Dial("tcp", r.Host)
-	}
-
+func handleTunneling(w http.ResponseWriter, r *http.Request, timeout time.Duration) {
+	dest_conn, err := net.DialTimeout("tcp", r.Host, timeout)
 	if err != nil {
 		glog.Errorf("Failed to dial host, %s\n", err.Error())
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-
 	w.WriteHeader(http.StatusOK)
-
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
 		glog.Errorln("Attempted to hijack connection that does not support it")
 		http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
 		return
 	}
-
-	clientConn, _, err := hijacker.Hijack()
+	client_conn, _, err := hijacker.Hijack()
 	if err != nil {
 		glog.Errorf("Failed to hijack connection, %s\n", err.Error())
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	}
-
-	go transfer(destConn, clientConn)
-	go transfer(clientConn, destConn)
+	go transfer(dest_conn, client_conn)
+	go transfer(client_conn, dest_conn)
 }
 
 func transfer(destination io.WriteCloser, source io.ReadCloser) {
@@ -156,6 +116,7 @@ func proxyBasicAuth(r *http.Request) (username, password string, ok bool) {
 // "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
 func parseBasicAuth(auth string) (username, password string, ok bool) {
 	const prefix = "Basic "
+	// Case insensitive prefix match. See Issue 22736.
 	if len(auth) < len(prefix) || !equalFold(auth[:len(prefix)], prefix) {
 		return
 	}
