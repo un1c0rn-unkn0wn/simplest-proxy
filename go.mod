@@ -1,5 +1,3 @@
-module github.com/jthomperoo/simple-proxy
+module proxy
 
 go 1.22
-
-require github.com/golang/glog v1.0.0

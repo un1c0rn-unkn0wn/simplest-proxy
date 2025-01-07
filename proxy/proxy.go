@@ -2,13 +2,13 @@ package proxy
 
 import (
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"strings"
+	"os"
 	"time"
-
-	"github.com/golang/glog"
+	//"strings"
 )
 
 func NewProxyHandler(timeoutSeconds int) *ProxyHandler {
@@ -26,22 +26,20 @@ type ProxyHandler struct {
 }
 
 func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	glog.V(1).Infof("Serving '%s' request from '%s' to '%s'\n", r.Method, r.RemoteAddr, r.Host)
+	fmt.Fprintf(os.Stdout, "[INFO]: Serving '%s' request from '%s' to '%s'\n", r.Method, r.RemoteAddr, r.Host)
 	if p.LogHeaders {
 		for name, values := range r.Header {
 			for i, value := range values {
-				glog.V(1).Infof("'%s': [%d] %s", name, i, value)
+				fmt.Fprintf(os.Stdout, "'%s': [%d] %s", name, i, value)
 			}
 		}
 	}
 	if p.Username != nil && p.Password != nil {
 		username, password, ok := proxyBasicAuth(r)
 		if !ok || username != *p.Username || password != *p.Password {
-			if p.LogAuth {
-				glog.Errorf("Unauthorized request from %s with username: %s and password: %s\n", r.RemoteAddr, username, password)
-			} else {
-				glog.Errorln("Unauthorized")
-			}
+			//Unauthorized message
+			fmt.Fprintf(os.Stdout, "[AUTH]: Unauthorized request from %s\n", r.RemoteAddr)
+			fmt.Fprintf(os.Stderr, "[AUTH]: Unauthorized request from %s\n", r.RemoteAddr)
 			w.Header().Set("Proxy-Authenticate", "Basic")
 			http.Error(w, "Unauthorized", http.StatusProxyAuthRequired)
 			return
@@ -57,20 +55,23 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func handleTunneling(w http.ResponseWriter, r *http.Request, timeout time.Duration) {
 	dest_conn, err := net.DialTimeout("tcp", r.Host, timeout)
 	if err != nil {
-		glog.Errorf("Failed to dial host, %s\n", err.Error())
+		fmt.Fprintf(os.Stderr, "[ERROR]: Failed to dial host, %s\n", err.Error())
+		fmt.Fprintf(os.Stdout, "[ERROR]: Failed to dial host, %s\n", err.Error())
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
-		glog.Errorln("Attempted to hijack connection that does not support it")
+		fmt.Fprintln(os.Stderr, "[ERROR]: Attempted to hijack connection that does not support it")
+		fmt.Fprintln(os.Stdout, "[ERROR]: Attempted to hijack connection that does not support it")
 		http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
 		return
 	}
 	client_conn, _, err := hijacker.Hijack()
 	if err != nil {
-		glog.Errorf("Failed to hijack connection, %s\n", err.Error())
+		fmt.Fprintf(os.Stderr, "[ERROR]: Failed to hijack connection, %s\n", err.Error())
+		fmt.Fprintf(os.Stdout, "[ERROR]: Failed to hijack connection, %s\n", err.Error())
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	}
 	go transfer(dest_conn, client_conn)
@@ -86,7 +87,8 @@ func transfer(destination io.WriteCloser, source io.ReadCloser) {
 func handleHTTP(w http.ResponseWriter, req *http.Request) {
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		glog.Errorf("Failed to proxy request, %s\n", err.Error())
+		fmt.Fprintf(os.Stderr, "[ERROR]: Failed to proxy request, %s\n", err.Error())
+		fmt.Fprintf(os.Stdout, "[ERROR]: Failed to proxy request, %s\n", err.Error())
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
@@ -125,7 +127,16 @@ func parseBasicAuth(auth string) (username, password string, ok bool) {
 		return
 	}
 	cs := string(c)
-	s := strings.IndexByte(cs, ':')
+	//s := strings.IndexByte(cs, ':')
+	// No pkg code
+	var s = -1
+	for i := 0; i < len(cs); i++ {
+		if cs[i] == ':' {
+			s = i
+			break
+		}
+	}
+	// End of no pkg code
 	if s < 0 {
 		return
 	}

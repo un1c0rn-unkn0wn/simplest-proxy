@@ -4,18 +4,14 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strings"
+	"proxy/proxy"
 	"time"
-
-	"github.com/golang/glog"
-	"github.com/jthomperoo/simple-proxy/proxy"
 )
 
 var (
-	Version = "development"
+	Version = "v1.0"
 )
 
 const (
@@ -24,28 +20,28 @@ const (
 )
 
 func init() {
-	flag.Set("logtostderr", "true")
+	//	flag.Set("logtostderr", "true")
 }
 
 func main() {
 	var version bool
-	flag.BoolVar(&version, "version", false, "prints current simple-proxy version")
+	flag.BoolVar(&version, "version", false, "prints current version")
 	var protocol string
 	flag.StringVar(&protocol, "protocol", httpProtocol, "proxy protocol (http or https)")
 	var bind string
-	flag.StringVar(&bind, "bind", "0.0.0.0", "address to bind the proxy server to")
+	flag.StringVar(&bind, "bind", "0.0.0.0", "IP address to bind the proxy server to")
 	var port string
-	flag.StringVar(&port, "port", "8888", "proxy port to listen on")
+	flag.StringVar(&port, "port", "8888", "port to listen on")
 	var certPath string
-	flag.StringVar(&certPath, "cert", "", "path to cert file")
+	flag.StringVar(&certPath, "cert", "", "path to cert file (eg. fullchain.pem)")
 	var keyPath string
-	flag.StringVar(&keyPath, "key", "", "path to key file")
+	flag.StringVar(&keyPath, "key", "", "path to key file (eg. privkey.pem)")
 	var basicAuth string
-	flag.StringVar(&basicAuth, "basic-auth", "", "basic auth, format 'username:password', no auth if not provided")
+	flag.StringVar(&basicAuth, "basic-auth", "", "basic auth, format username:password, no auth if not provided")
 	var logAuth bool
-	flag.BoolVar(&logAuth, "log-auth", false, "log failed proxy auth details")
+	flag.BoolVar(&logAuth, "log-auth", false, "log failed proxy auth with IP (eg. for fail2ban)")
 	var logHeaders bool
-	flag.BoolVar(&logHeaders, "log-headers", false, "log request headers")
+	flag.BoolVar(&logHeaders, "log-headers", false, "log headers")
 	var timeoutSecs int
 	flag.IntVar(&timeoutSecs, "timeout", 10, "timeout in seconds")
 	flag.Parse()
@@ -56,11 +52,15 @@ func main() {
 	}
 
 	if protocol != httpProtocol && protocol != httpsProtocol {
-		glog.Fatalln("Protocol must be either http or https")
+		fmt.Fprintln(os.Stdout, "[ERROR]: Protocol must be http or https")
+		//fmt.Fprintln(os.Stderr, "[ERROR]: Protocol must be http or https")
+		os.Exit(1)
 	}
 
 	if protocol == httpsProtocol && (certPath == "" || keyPath == "") {
-		glog.Fatalf("If using HTTPS protocol --cert and --key are required\n")
+		fmt.Fprintln(os.Stdout, "[ERROR]: Options --cert and --key are required")
+		//fmt.Fprintln(os.Stderr, "[ERROR]: Options --cert and --key are required")
+		os.Exit(1)
 	}
 
 	var handler http.Handler
@@ -71,10 +71,29 @@ func main() {
 			LogHeaders: logHeaders,
 		}
 	} else {
-		parts := strings.Split(basicAuth, ":")
-		if len(parts) < 2 {
-			glog.Fatalf("Invalid basic auth provided, must be in format 'username:password', auth: %s\n", basicAuth)
+		//Search for user and pass credentials
+		var user, pass string
+		foundDelimiter := false
+
+		for _, char := range basicAuth {
+			if char == ':' {
+				foundDelimiter = true
+				continue
+			}
+			if foundDelimiter {
+				pass += string(char)
+			} else {
+				user += string(char)
+			}
 		}
+
+		if !foundDelimiter || user == "" || pass == "" {
+			fmt.Fprintln(os.Stdout, "[ERROR]: Invalid auth format provided")
+			//fmt.Fprintln(os.Stderr, "[ERROR]: Invalid auth format provided")
+			os.Exit(1)
+		}
+
+		parts := []string{user, pass}
 		handler = &proxy.ProxyHandler{
 			Timeout:    time.Duration(timeoutSecs) * time.Second,
 			Username:   &parts[0],
@@ -92,10 +111,10 @@ func main() {
 	}
 
 	if protocol == httpProtocol {
-		glog.V(0).Infoln("Starting HTTP proxy...")
-		log.Fatal(server.ListenAndServe())
+		fmt.Fprintln(os.Stdout, "[INFO]: Starting HTTP proxy...")
+		fmt.Fprintln(os.Stdout, server.ListenAndServe())
 	} else {
-		glog.V(0).Infoln("Starting HTTPS proxy...")
-		log.Fatal(server.ListenAndServeTLS(certPath, keyPath))
+		fmt.Fprintln(os.Stdout, "[INFO]: Starting HTTPS proxy...")
+		fmt.Fprintln(os.Stdout, server.ListenAndServeTLS(certPath, keyPath))
 	}
 }
