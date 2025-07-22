@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v1.0a] - 2025-05-23
+### Added
+- Renamed repo
+- More OS and targets in Makefile
 ## [v1.0] - 2025-01-07
 ### Added
 - Forked from <https://github.com/jthomperoo/simple-proxy/releases/tag/v1.2.0>

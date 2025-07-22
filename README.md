@@ -1,4 +1,4 @@
-# Super simple HTTP(S) Proxy
+# simplest-proxy - Super simple HTTP(S) Proxy
 
 This is a super simple HTTP/HTTPS proxy - designed to be distributed as a self-contained binary that can be dropped in
 anywhere and run.
@@ -20,7 +20,7 @@ Code based on the guide here: <https://medium.com/@mlowicki/http-s-proxy-in-gola
 ## Install
 
 You can download the latest release for your architecture and operating system from [the releases
-page](https://github.com/un1c0rn-unkn0wn/super-simple-proxy/releases).
+page](https://github.com/un1c0rn-unkn0wn/simplest-proxy/releases).
 
 Once you unzip the release package you can either run the binary directly, or you can add it into your PATH so it can
 be called from anywhere.
@@ -49,7 +49,7 @@ You can download the binary and run the program directly (it is fully self conta
 The program has the following options, you can see this list by using the `--help` flag.
 
 ```bash
-Usage of super-simple-proxy:
+Usage of simplest-proxy:
   -basic-auth string
         basic auth, format username:password, no auth if not provided
   -bind string
