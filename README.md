@@ -30,13 +30,10 @@ be called from anywhere.
 Developing this project requires these dependencies:
 
 * [Go](https://golang.org/doc/install) >= `1.22`
-* [Static Check](https://github.com/dominikh/go-tools) == `2023.1 (v0.4.0)`
 
 ### Commands
 
 * `make` - builds the binaries.
-* `make test` - runs the unit tests.
-* `make lint` - lints the code.
 * `make format` - formats the code, must be run to pass the CI.
 * `make zip` - zips the code for distribution along with the license.
 

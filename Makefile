@@ -32,7 +32,7 @@ default:
 	cp LICENSE dist/freebsd_386/LICENSE
 
 	# FreeBSD amd64
-	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags="-s -w -X 'main.Version=$(VERSION)'" -o -o dist/freebsd_amd64/simplest-proxy main.go
+	CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags="-s -w -X 'main.Version=$(VERSION)'" -o dist/freebsd_amd64/simplest-proxy main.go
 	cp LICENSE dist/freebsd_amd64/LICENSE
 
 	# FreeBSD arm
@@ -101,15 +101,11 @@ zip:
 	zip -r -j dist/simplest-proxy_linux_mips64.zip dist/linux_mips64
 	zip -r -j dist/simplest-proxy_linux_mips64le.zip dist/linux_mips64le
 
-lint:
-	@echo "=============Linting============="
-	staticcheck ./...
-
 format:
 	@echo "=============Formatting============="
 	gofmt -s -w .
 	go mod tidy
 
-test:
-	@echo "=============Running unit tests============="
-	go test ./...
+clean:
+	@echo "==============Cleaning=============="
+	rm -r ./dist
